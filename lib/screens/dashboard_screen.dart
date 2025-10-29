@@ -297,7 +297,7 @@ class DashboardScreen extends StatelessWidget {
                       color: Colors.grey[400],
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                    ),
+                    ),  
                   ),
                 ],
               ),

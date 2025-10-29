@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1077339885999",
+    "project_id": "intostudy-9b377",
+    "storage_bucket": "intostudy-9b377.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077339885999:android:2ae9e9511214ca89845f5a",
+        "android_client_info": {
+          "package_name": "com.example.into_study"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6jvnRudSLzorNs9MzhYZXl7Ofz6qG-n0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
