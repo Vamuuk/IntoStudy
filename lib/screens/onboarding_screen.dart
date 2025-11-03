@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../services/default_chats_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final String email;
+  final String uid;
+
+  const OnboardingScreen({
+    super.key,
+    required this.email,
+    required this.uid,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -10,7 +19,9 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerProviderStateMixin {
   int _currentStep = 0;
   late AnimationController _slideController;
-  
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+
   // Controllers
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
@@ -32,17 +43,54 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
     const Color(0xFF06B6D4),
   ];
   
-  final List<String> _universities = [
-    'Woosong University',
-    'Seoul National University',
-    'KAIST',
-    'Yonsei University',
-    'Korea University',
-    'Sungkyunkwan University',
-    'Hanyang University',
-    'Kyung Hee University',
-    'Other',
-  ];
+final Map<String, List<String>> _universities = {
+    'Seoul': [
+      'Seoul National University',
+      'Yonsei University',
+      'Korea University',
+      'Sungkyunkwan University',
+      'Sogang University',
+      'Kyung Hee University',
+      'Hanyang University',
+      'Ewha Womans University',
+      'Hongik University',
+      'Chung-Ang University',
+      'Korea Military Academy',
+    ],
+    'Busan': [
+      'Pusan National University',
+      'Pukyong National University',
+      'Busan University of Foreign Studies',
+    ],
+    'Daejeon': [
+      'KAIST',
+      'Chungnam National University',
+      'Solbridge International School of Business Woosong University',
+    ],
+    'Incheon': [
+      'Incheon National University',
+      'Yonsei University (Songdo Campus)',
+    ],
+    'Gwangju': [
+      'Chonnam National University',
+      'Gwangju Institute of Science and Technology (GIST)',
+    ],
+    'Pohang': [
+      'Pohang University of Science and Technology (POSTECH)',
+    ],
+    'Ulsan': [
+      'Ulsan National Institute of Science and Technology (UNIST)',
+    ],
+    'Jeonju': [
+      'Chonbuk National University',
+    ],
+    'Namyangju': [
+      'Kyungbok University',
+    ],
+    'Other': [
+      'Other',
+    ]
+  };
   
   final List<Map<String, dynamic>> _interests = [
     {'name': 'Programming', 'icon': Icons.code_rounded},
@@ -114,9 +162,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
     }
   }
 
-  void _finish() {
-    // TODO: Save user profile
-    Navigator.pushReplacementNamed(context, '/main');
+  Future<void> _finish() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Convert color to hex string for storage
+      final colorHex = '#${_selectedColor.value.toRadixString(16).substring(2)}';
+
+      await _authService.createUserProfile(
+        uid: widget.uid,
+        email: widget.email,
+        name: _nameController.text.trim(),
+        university: _selectedUniversity ?? 'Not specified',
+        bio: _bioController.text.trim(),
+        avatarLetter: _selectedAvatar,
+        avatarColor: colorHex,
+        interests: _selectedInterests,
+      );
+
+      // Create default chats for new user
+      final defaultChatsService = DefaultChatsService();
+      await defaultChatsService.createDefaultChatsIfNeeded(widget.uid);
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/main');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save profile: ${e.toString()}'),
+            backgroundColor: Colors.red[400],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -253,10 +339,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                       else
                         const SizedBox(),
                       ElevatedButton.icon(
-                        onPressed: _canProceed() ? _nextStep : null,
-                        icon: Icon(
-                          _currentStep == 3 ? Icons.check_rounded : Icons.arrow_forward_rounded,
-                        ),
+                        onPressed: (_canProceed() && !_isLoading) ? _nextStep : null,
+                        icon: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Icon(
+                                _currentStep == 3 ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                              ),
                         label: Text(_currentStep == 3 ? 'Get Started' : 'Continue'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4F46E5),
@@ -450,63 +545,80 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
         ),
         const SizedBox(height: 40),
         
-        ...(_universities.map((uni) {
-          final isSelected = _selectedUniversity == uni;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _selectedUniversity = uni;
-                  });
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected 
-                          ? const Color(0xFF4F46E5) 
-                          : Colors.grey[300]!,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.school_rounded,
-                        color: isSelected 
-                            ? const Color(0xFF4F46E5) 
-                            : Colors.grey[400],
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          uni,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                            color: isSelected 
-                                ? const Color(0xFF1E293B) 
-                                : Colors.grey[700],
-                          ),
-                        ),
-                      ),
-                      if (isSelected)
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          color: Color(0xFF4F46E5),
-                        ),
-                    ],
-                  ),
+        ...(_universities.entries.expand((entry) {
+          final city = entry.key;
+          final universities = entry.value;
+          return [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16, top: 16),
+              child: Text(
+                city,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
                 ),
               ),
             ),
-          );
+            ...universities.map((uni) {
+              final isSelected = _selectedUniversity == uni;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedUniversity = uni;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected 
+                              ? const Color(0xFF4F46E5) 
+                              : Colors.grey[300]!,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school_rounded,
+                            color: isSelected 
+                                ? const Color(0xFF4F46E5) 
+                                : Colors.grey[400],
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              uni,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                color: isSelected 
+                                    ? const Color(0xFF1E293B) 
+                                    : Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF4F46E5),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            })
+          ];
         })),
       ],
     );

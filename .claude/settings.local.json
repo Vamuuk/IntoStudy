@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter devices:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(timeout /t 15)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter build:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(move libscreensnotes_screen.dart libscreensnotes_screen.dart.backup)",
+      "Bash(copy libscreensnotes_screen.dart libscreensnotes_screen.dart.backup)",
+      "Bash(taskkill:*)",
+      "Bash(nul)",
+      "Bash(exit 0)",
+      "Bash(timeout /t 3)",
+      "Bash(start buildwindowsx64runnerReleaseinto_study.exe)",
+      "Bash(start into_study.exe)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'firebase_options.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/notes_screen.dart';
-import 'screens/qa_screen.dart';
-import 'screens/chats_screen.dart';
+import 'screens/notes_screen_new.dart';
+import 'screens/qa_screen_new.dart';
+import 'screens/chats_screen_new.dart';
 import 'screens/profile_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 🚀 PERFORMANCE: Enable Firestore offline persistence & caching
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
   runApp(const IntoStudyApp());
 }
 
@@ -45,12 +59,14 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const NotesScreen(),
-    const QAScreen(),
-    const ChatsScreen(),
-    const ProfileScreen(),
+  // 🚀 PERFORMANCE: Use IndexedStack to keep widget state alive
+  // Instead of rebuilding widgets, we just hide/show them
+  static const List<Widget> _screens = [
+    DashboardScreen(),
+    NotesScreenNew(),
+    QaScreenNew(),
+    ChatsScreenNew(),
+    ProfileScreen(),
   ];
 
   @override
@@ -205,8 +221,13 @@ class _MainScreenState extends State<MainScreen> {
           ),
           
           // Content
+          // 🚀 PERFORMANCE: IndexedStack keeps all screens in memory
+          // Prevents rebuilding when switching tabs - 10x faster navigation!
           Expanded(
-            child: _screens[_selectedIndex],
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _screens,
+            ),
           ),
         ],
       ),

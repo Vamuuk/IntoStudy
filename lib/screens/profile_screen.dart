@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -8,13 +10,14 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _nameController = TextEditingController(text: 'ACHO');
-  final _universityController = TextEditingController(text: 'Woosong University');
-  final _bioController = TextEditingController(text: 'Computer Science student passionate about AI and Web Development');
-  
+  final AuthService _authService = AuthService();
+  final _nameController = TextEditingController();
+  final _bioController = TextEditingController();
+  String _selectedUniversity = 'Woosong University';
+
   String _selectedAvatar = 'A';
   final List<String> _avatarOptions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-  
+
   final List<Color> _avatarColors = [
     const Color(0xFF4F46E5),
     const Color(0xFF10B981),
@@ -23,18 +26,143 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const Color(0xFF8B5CF6),
     const Color(0xFF06B6D4),
   ];
-  
-  Color _selectedColor = const Color(0xFF4F46E5);
 
-  void _saveProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Profile updated successfully!'),
-        backgroundColor: const Color(0xFF4F46E5),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  Color _selectedColor = const Color(0xFF4F46E5);
+  bool _isLoading = true;
+  int _notesCount = 0;
+  int _questionsCount = 0;
+  int _points = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final profile = await _authService.getUserProfile(user.uid);
+
+      if (profile != null && mounted) {
+        setState(() {
+          _nameController.text = profile['name'] ?? '';
+          _selectedUniversity = profile['university'] ?? 'Woosong University';
+          _bioController.text = profile['bio'] ?? '';
+          _selectedAvatar = profile['avatarLetter'] ?? 'A';
+
+          // Parse color from hex
+          final colorHex = profile['avatarColor'] ?? '#4F46E5';
+          try {
+            _selectedColor = Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
+          } catch (e) {
+            _selectedColor = const Color(0xFF4F46E5);
+          }
+
+          // Load statistics
+          _notesCount = profile['notesShared'] ?? 0;
+          _questionsCount = profile['questionsAsked'] ?? 0;
+          _points = profile['points'] ?? 0;
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      final colorHex = '#${_selectedColor.value.toRadixString(16).substring(2)}';
+
+      await _authService.updateUserProfile(user.uid, {
+        'name': _nameController.text.trim(),
+        'university': _selectedUniversity,
+        'bio': _bioController.text.trim(),
+        'avatarLetter': _selectedAvatar,
+        'avatarColor': colorHex,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile updated successfully!'),
+            backgroundColor: const Color(0xFF4F46E5),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed == true) {
+      try {
+        await _authService.signOut();
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error logging out: ${e.toString()}'),
+              backgroundColor: Colors.red[400],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -106,7 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                _universityController.text,
+                                _selectedUniversity,
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[600],
@@ -117,19 +245,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                 children: [
-                                  _buildStatItem('0', 'Notes'),
+                                  _buildStatItem(_notesCount.toString(), 'Notes'),
                                   Container(
                                     height: 40,
                                     width: 1,
                                     color: Colors.grey[200],
                                   ),
-                                  _buildStatItem('0', 'Questions'),
+                                  _buildStatItem(_questionsCount.toString(), 'Questions'),
                                   Container(
                                     height: 40,
                                     width: 1,
                                     color: Colors.grey[200],
                                   ),
-                                  _buildStatItem('0', 'Points'),
+                                  _buildStatItem(_points.toString(), 'Points'),
                                 ],
                               ),
                             ],
@@ -297,9 +425,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               const SizedBox(height: 20),
-                              
-                              TextField(
-                                controller: _universityController,
+
+                              DropdownButtonFormField<String>(
+                                value: _selectedUniversity,
                                 decoration: InputDecoration(
                                   labelText: 'University',
                                   prefixIcon: const Icon(Icons.school_rounded),
@@ -316,6 +444,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   filled: true,
                                   fillColor: const Color(0xFFF8FAFC),
                                 ),
+                                items: University.list.map((String university) {
+                                  return DropdownMenuItem<String>(
+                                    value: university,
+                                    child: Text(university),
+                                  );
+                                }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue != null) {
+                                    setState(() {
+                                      _selectedUniversity = newValue;
+                                    });
+                                  }
+                                },
                               ),
                               const SizedBox(height: 20),
                               
@@ -391,7 +532,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               const SizedBox(height: 20),
-                              
+
                               _buildPreferenceItem(
                                 Icons.notifications_rounded,
                                 'Email Notifications',
@@ -413,6 +554,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 false,
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Logout Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _logout,
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Logout'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: const BorderSide(color: Colors.red, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              foregroundColor: Colors.red,
+                            ),
                           ),
                         ),
                       ],

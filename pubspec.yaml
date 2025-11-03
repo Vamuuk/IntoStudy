@@ -14,9 +14,13 @@ dependencies:
   cupertino_icons: ^1.0.2
   
   # === НАЧАЛО: ДОБАВЛЕНЫ ПАКЕТЫ FIREBASE ===
-  firebase_core: ^2.24.2 # Используйте последнюю стабильную версию
-  cloud_firestore: ^4.13.4 # Используйте последнюю стабильную версию
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  cloud_firestore: ^4.15.8
   # === КОНЕЦ: ДОБАВЛЕНЫ ПАКЕТЫ FIREBASE ===
+
+  # Utility packages
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:

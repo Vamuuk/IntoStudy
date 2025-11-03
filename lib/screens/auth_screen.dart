@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'onboarding_screen.dart';
+import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -17,7 +18,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
+  bool _isLoading = false;
   late AnimationController _animationController;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -77,7 +80,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return null;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
       if (!_isLogin && !_agreeToTerms) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -90,17 +93,71 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         );
         return;
       }
-      
-      // Если регистрация - идём к онбордингу, если вход - сразу в главное меню
-      if (_isLogin) {
-        // TODO: Implement login logic
-        Navigator.pushReplacementNamed(context, '/main');
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
+
+      setState(() => _isLoading = true);
+
+      try {
+        if (_isLogin) {
+          // Login with Firebase
+          await _authService.signInWithEmailAndPassword(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/main');
+          }
+        } else {
+          // Register with Firebase
+          final userCredential = await _authService.registerWithEmailAndPassword(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OnboardingScreen(
+                  email: _emailController.text.trim(),
+                  uid: userCredential.user!.uid,
+                ),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_getErrorMessage(e.toString())),
+              backgroundColor: Colors.red[400],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
+    }
+  }
+
+  String _getErrorMessage(String error) {
+    if (error.contains('user-not-found')) {
+      return 'No user found with this email';
+    } else if (error.contains('wrong-password')) {
+      return 'Wrong password';
+    } else if (error.contains('email-already-in-use')) {
+      return 'Email already in use';
+    } else if (error.contains('weak-password')) {
+      return 'Password is too weak';
+    } else if (error.contains('invalid-email')) {
+      return 'Invalid email address';
+    } else if (error.contains('network-request-failed')) {
+      return 'Network error. Please check your connection';
+    } else {
+      return 'An error occurred. Please try again';
     }
   }
 
@@ -404,23 +461,33 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _submit,
+                              onPressed: _isLoading ? null : _submit,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4F46E5),
                                 foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.grey[300],
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Text(
-                                _isLogin ? 'Sign In' : 'Create Account',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : Text(
+                                      _isLogin ? 'Sign In' : 'Create Account',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                             ),
                           ),
                           
@@ -482,16 +549,38 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             ],
                           ),
                           
+                          const SizedBox(height: 20),
+
+                          // Guest Mode Button
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pushReplacementNamed(context, '/main');
+                              },
+                              icon: const Icon(Icons.person_outline, size: 20),
+                              label: const Text('Continue as Guest'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                foregroundColor: const Color(0xFF4F46E5),
+                              ),
+                            ),
+                          ),
+
                           const SizedBox(height: 28),
-                          
+
                           // Toggle Login/Signup
                           Center(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  _isLogin 
-                                      ? "Don't have an account? " 
+                                  _isLogin
+                                      ? "Don't have an account? "
                                       : 'Already have an account? ',
                                   style: TextStyle(
                                     color: Colors.grey[600],
